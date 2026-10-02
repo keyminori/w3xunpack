@@ -5,11 +5,12 @@ on:
     types: [created]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,7 +27,7 @@ jobs:
         shell: bash
         run: |
           pyinstaller --noconfirm --clean --onefile --windowed \
-            --name "W3X一键解包" \
+            --name "W3XUnpacker" \
             --add-data "mpyq.py;." \
             --add-data "内置技能名.json;." \
             --hidden-import mpyq \
@@ -35,11 +36,13 @@ jobs:
       - name: Upload Artifact (manual run)
         uses: actions/upload-artifact@v4
         with:
-          name: W3X一键解包-exe
-          path: dist/W3X一键解包.exe
+          name: W3XUnpacker-exe
+          path: dist/W3XUnpacker.exe
 
       - name: Upload EXE to Release
         if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/W3XUnpacker.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload --clobber "${{ github.event.release.tag_name }}" "dist/W3X一键解包.exe"
