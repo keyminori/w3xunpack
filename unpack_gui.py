@@ -84,8 +84,14 @@ def unpack_one(w3x_path, log):
         ('abilitydata.slk', U.PATH_ABILITY_SLK),
         ('UnitStrings.txt', U.PATH_UNIT_STR),
         ('unitbalance.slk', U.PATH_UNIT_SLK),
+        ('war3map.wts', U.PATH_WTS),
+        ('war3map.w3a', U.PATH_W3A),
     ]
     items, raw_hint, slk_sum = [], [], []
+    ability_names = {}
+    ability_rows = []
+    wts_items = []
+    w3a_strings = []
     for label, variants in pulls:
         data, used = U.read_first(a, variants)
         if data is None:
@@ -95,9 +101,21 @@ def unpack_one(w3x_path, log):
         raw_hint.append((label, len(data)))
         if label == 'ItemStrings.txt':
             items = U.parse_item_strings(U.decode(data))
+        elif label == 'AbilityStrings.txt':
+            ability_names = U.parse_skill_strings(U.decode(data))
+        elif label == 'war3map.wts':
+            wts_items = U.parse_wts(U.decode(data))
+            with open(os.path.join(outdir, 'wts文本.json'), 'w', encoding='utf-8') as f:
+                json.dump(wts_items, f, ensure_ascii=False, indent=1)
+        elif label == 'war3map.w3a':
+            w3a_strings = U.extract_w3a_strings(data)
+            with open(os.path.join(outdir, '技能名.json'), 'w', encoding='utf-8') as f:
+                json.dump(w3a_strings, f, ensure_ascii=False, indent=1)
         elif label.endswith('.slk'):
             rows, _ = U.parse_slk(data)
             slk_sum.append((label, len(rows)))
+            if label == 'abilitydata.slk':
+                ability_rows = rows
             with open(os.path.join(outdir, label + '.json'), 'w', encoding='utf-8') as f:
                 json.dump(rows, f, ensure_ascii=False, indent=1)
 
@@ -127,14 +145,41 @@ def unpack_one(w3x_path, log):
         for it in items:
             tip = U.clean_text(it['ubertip']).replace('|', '\\|')
             f.write(f"| {it['id']} | {it['name']} | {it['rarity']} | {it['slot']} | {tip} |\n")
-    with open(os.path.join(outdir, '解包报告.html'), 'w', encoding='utf-8') as f:
-        f.write(U.build_html(base, items, raw_hint, slk_sum))
+    # ---- 技能表/文本提取 ----
+    skill_msg = ''
+    full = []
+    if ability_rows:
+        for row in ability_rows:
+            code = row.get('alias') or row.get('code') or ''
+            nm = ability_names.get(row.get('alias')) or ability_names.get(row.get('code')) or {}
+            full.append({
+                'code': code,
+                'name': nm.get('name', '') or U.BUILTIN_ABILITY_NAMES.get(code, ''),
+                'desc': nm.get('desc', ''),
+                'levels': row.get('levels', ''), 'cool1': row.get('Cool1', ''),
+                'cost1': row.get('Cost1', ''), 'area1': row.get('Area1', ''),
+                'rng1': row.get('Rng1', ''), 'dataA1': row.get('DataA1', ''),
+            })
+        with open(os.path.join(outdir, '技能表.json'), 'w', encoding='utf-8') as f:
+            json.dump(full, f, ensure_ascii=False, indent=1)
+        named = sum(1 for x in full if x['name'])
+        with open(os.path.join(outdir, '技能表.md'), 'w', encoding='utf-8') as f:
+            f.write(f'# {base} · 技能表\n\n> 共 {len(full)} 条 · 有名称 {named} 条\n\n')
+            f.write('| 代码 | 名称 | 描述 | 冷却 | 消耗 | 范围 | 射程 | 数值A |\n|---|---|---|---|---|---|---|---|\n')
+            for x in full:
+                desc = (x['desc'] or '—').replace('|', '\\|')[:40]
+                f.write(f"| {x['code']} | {x['name'] or '无'} | {desc} | {x['cool1']} | {x['cost1']} | {x['area1']} | {x['rng1']} | {x['dataA1']} |\n")
+        skill_msg = f'；技能表 {len(full)} 条' + (f'（含名称 {named}）' if named else '（本图无技能名文本，仅数值）')
+        if wts_items:
+            skill_msg += f'；wts 文本 {len(wts_items)} 条'
 
-    if tmp_file and os.path.exists(tmp_file):
-        try: os.remove(tmp_file)
-        except Exception: pass
+    if w3a_strings:
+        with open(os.path.join(outdir, '技能名.md'), 'w', encoding='utf-8') as f:
+            f.write(f'# {base} · 技能名（war3map.w3a 内嵌）\n\n')
+            f.write(f'> 共 {len(w3a_strings)} 个中文技能名/描述\n\n')
+            for s in w3a_strings:
+                f.write('- ' + s.replace('|', '\\|') + '\n')
 
-    log(f'[完成] 共提取物品 {len(items)} 件 → ' + outdir)
     return 0, outdir
 
 
