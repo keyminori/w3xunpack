@@ -2,10 +2,10 @@
 
 
 a = Analysis(
-    ['unpack_gui.py'],
-    pathex=['.'],
+    ['D:/dnd_ref/W3X解包工具/unpack_gui.py'],
+    pathex=['D:/dnd_ref/W3X解包工具'],
     binaries=[],
-    datas=[('mpyq.py', '.')],
+    datas=[('D:/dnd_ref/W3X解包工具/mpyq.py', '.'), ('D:/dnd_ref/W3X解包工具/内置技能名.json', '.')],
     hiddenimports=['mpyq'],
     hookspath=[],
     hooksconfig={},
