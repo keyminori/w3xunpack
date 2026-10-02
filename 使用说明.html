@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>W3X 一键解包工具 · 使用说明</title>
+<style>
+  :root{--p:#2A5A6A;--ps:#35586b;--a:#C77B3F;--n:#0D1117;--g:#5CD99B;--b:#E4E0D8;--dim:#9aa7b5;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:radial-gradient(circle at 50% -10%,#1a2530 0%,var(--n) 55%);color:var(--b);font-family:"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.8;font-size:16px;padding-bottom:90px}
+  .wrap{max-width:860px;margin:0 auto;padding:0 26px}
+  header{padding:60px 0 30px;text-align:center;border-bottom:1px solid var(--p)}
+  .k{color:var(--g);letter-spacing:.3em;font-size:12px;margin-bottom:12px}
+  h1{font-size:32px} h1 span{color:var(--a)}
+  .sub{color:var(--dim);font-size:15px;margin-top:8px}
+  h2{color:var(--g);font-size:21px;margin:34px 0 12px;border-bottom:1px solid var(--p);padding-bottom:6px}
+  .step{background:#141b23;border:1px solid var(--ps);border-radius:12px;padding:16px 18px;margin:12px 0}
+  .step .no{color:var(--a);font-weight:700;font-size:13px;letter-spacing:.08em;display:block;margin-bottom:4px}
+  code{background:#0f141b;border:1px solid var(--ps);border-radius:5px;padding:2px 8px;font-size:13px;color:var(--g)}
+  .warn{background:rgba(199,123,63,.08);border:1px solid rgba(199,123,63,.35);border-left:4px solid var(--a);border-radius:8px;padding:12px 16px;margin:14px 0}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+  th{background:rgba(46,90,106,.25);color:var(--g);text-align:left;padding:8px 12px;border-bottom:2px solid var(--p)}
+  td{padding:8px 12px;border-bottom:1px solid rgba(122,143,163,.15)}
+  footer{text-align:center;color:var(--dim);font-size:13px;padding:30px;border-top:1px solid var(--p);margin-top:40px}
+</style></head><body>
+<header><div class="wrap">
+  <div class="k">W3X UNPACKER · ONE-CLICK</div>
+  <h1>W3X 一键解包工具 · <span>使用说明</span></h1>
+  <div class="sub">把魔兽地图拖进来，自动解出装备/技能数据 · 傻瓜式操作</div>
+</div></header>
+<div class="wrap">
+
+  <h2>它解决什么问题</h2>
+  <p>很多魔兽自制地图是「SLK 优化图」：装备名称、属性、技能都藏在 <code>Units\ItemStrings.txt</code> 和 <code>itemdata.slk</code> 里，普通工具（如 xdep）解不出来。本工具用 <code>mpyq</code> 按正确路径直接读取，一键把所有装备数据解出来。</p>
+
+  <h2>怎么用（推荐：图形界面 exe）</h2>
+  <div class="step"><span class="no">方式一 · 双击 exe</span>双击 <code>W3X一键解包.exe</code>，打开图形界面。</div>
+  <div class="step"><span class="no">方式二 · 拖到 exe 上</span>把 .w3x 地图【直接拖到 <code>W3X一键解包.exe</code> 图标上】松开，窗口会自动加载。</div>
+  <div class="step"><span class="no">第 3 步</span>窗口里把 .w3x 拖进来（或点“添加文件”），点 <b>一键解包</b>。</div>
+  <div class="step"><span class="no">第 4 步</span>跑完点“打开输出”，或去地图同目录的 <code>&lt;地图名&gt;_解包输出</code> 文件夹看结果。</div>
+
+  <h2>备用命令行（无 Python 环境的电脑不适用）</h2>
+  <div class="step">把 .w3x 拖到 <code>一键解包.bat</code> 上（需本机装了 Python）。</div>
+
+  <h2>输出内容</h2>
+  <table>
+    <tr><th>文件</th><th>说明</th></tr>
+    <tr><td>解包报告.html</td><td>阅读版报告（推荐用浏览器打开）</td></tr>
+    <tr><td>物品清单.md</td><td>Markdown 汇总表</td></tr>
+    <tr><td>物品数据.json</td><td>完整结构化数据（名称/稀有度/槽位/属性）</td></tr>
+    <tr><td>raw/</td><td>解出的原始 SLK / 文本文件</td></tr>
+    <tr><td>*.slk.json</td><td>数值表（itemdata 等）转成的 JSON</td></tr>
+  </table>
+
+  <h2>常见问题</h2>
+  <div class="warn"><b>提示「未解出物品」</b>：该地图不是 SLK 优化图，数据存在脚本内，本工具暂不支持。</div>
+  <div class="warn"><b>能解重制版地图吗？</b>能。工具会自动识别「HM3W」重制版文件头并剥离，拖入原始 .w3x 即可，无需手动转换。</div>
+
+  <h2>备注</h2>
+  <p class="sub">工具为本地单文件工具，只读地图、只写输出，不联网、不改动原地图。解包能力参考自 <code>mpyq</code>。</p>
+
+</div>
+<footer>W3X 一键解包工具 · 本地离线运行</footer>
+</body></html>
