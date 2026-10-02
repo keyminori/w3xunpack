@@ -1,0 +1,43 @@
+name: Build W3X EXE
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Build EXE
+        shell: bash
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed \
+            --name "W3X一键解包" \
+            --add-data "mpyq.py;." \
+            --add-data "内置技能名.json;." \
+            --hidden-import mpyq \
+            unpack_gui.py
+
+      - name: Upload Artifact (manual run)
+        uses: actions/upload-artifact@v4
+        with:
+          name: W3X一键解包-exe
+          path: dist/W3X一键解包.exe
+
+      - name: Upload EXE to Release
+        if: github.event_name == 'release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload --clobber "${{ github.event.release.tag_name }}" "dist/W3X一键解包.exe"
