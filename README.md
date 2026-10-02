@@ -22,7 +22,9 @@
 ## 🚀 快速使用
 
 ### 图形界面（推荐，无需 Python）
-双击 `W3X一键解包.exe`，把 `.w3x` 拖进窗口（或拖到 exe 图标上），点「一键解包」。
+从 **GitHub Releases** 下载最新版 `W3X一键解包.exe`（exe 由 Release 自动构建，仓库不含二进制）。双击 exe，把 `.w3x` 拖进窗口（或拖到 exe 图标上），点「一键解包」。
+
+> 也可在仓库 **Actions → Build W3X EXE → Run workflow** 手动构建，产物在 Artifact 中。
 
 ### 命令行（需 Python 3）
 把 `.w3x` 拖到 `一键解包.bat` 图标上松开，或：
