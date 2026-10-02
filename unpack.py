@@ -21,6 +21,16 @@ import mpyq
 MPQ_MAGIC = b'MPQ\x1a'
 HM3W_OFFSET = 512   # 重制版 HM3W 头占 512 字节，之后才是标准 MPQ 数据
 
+# 内置技能中文名表（官方能力表，随工具分发）；缺失时技能名只取自地图文本
+BUILTIN_ABILITY_NAMES = {}
+_bpath = os.path.join(HERE, '内置技能名.json')
+if os.path.exists(_bpath):
+    try:
+        with open(_bpath, encoding='utf-8') as _f:
+            BUILTIN_ABILITY_NAMES = json.load(_f)
+    except Exception:
+        BUILTIN_ABILITY_NAMES = {}
+
 def prepare_mpq(w3x_path):
     """检测文件头。若是 HM3W 等非标准头，自动剥离为临时标准 MPQ 副本。
     返回 (可打开的路径, 是否临时文件)。"""
@@ -51,6 +61,8 @@ PATH_ABILITY_STR = [b'Units\\AbilityStrings.txt', b'Units\\Abilities.txt', b'Abi
 PATH_ABILITY_SLK = [b'Units\\abilitydata.slk', b'Units\\AbilityData.slk', b'abilitydata.slk']
 PATH_UNIT_STR    = [b'Units\\UnitStrings.txt', b'Units\\Units.txt', b'UnitStrings.txt']
 PATH_UNIT_SLK    = [b'Units\\unitbalance.slk', b'Units\\UnitBalance.slk', b'unitbalance.slk']
+PATH_WTS          = [b'war3map.wts', b'Units\\war3map.wts']
+PATH_W3A          = [b'war3map.w3a']
 
 # ---------- 2. 读取辅助 ----------
 def read_first(archive, candidates):
@@ -98,6 +110,44 @@ def parse_item_strings(txt):
             'art': (m_art.group(1).strip() if m_art else '')
         })
     return items
+
+def parse_skill_strings(txt):
+    """解析 AbilityStrings.txt 的技能名/描述文本 -> {code: {name, desc}}"""
+    out = {}
+    blocks = re.split(r'^\[([^\]]+)\]\r?\n', txt, flags=re.M)
+    for i in range(1, len(blocks), 2):
+        code = blocks[i]; content = blocks[i+1]
+        nm = re.search(r'Name=([^\r\n]+)', content)
+        tip = re.search(r'Ubertip=([^\r\n]+)', content) or re.search(r'Tip=([^\r\n]+)', content)
+        out[code] = {'name': clean_text(nm.group(1)) if nm else '',
+                     'desc': clean_text(tip.group(1)) if tip else ''}
+    return out
+
+
+def parse_wts(txt):
+    """解析 war3map.wts 字符串表 -> [{id, text}]"""
+    items = []
+    for m in re.finditer(r'STRING\s*\{?\s*(\d+)\s*"((?:[^"\\]|\\.)*)"', txt):
+        items.append({'id': int(m.group(1)), 'text': m.group(2).replace('\\n', ' ')})
+    return items
+
+
+def extract_w3a_strings(buf, minlen=2):
+    """从 war3map.w3a 提取含中文的技能名/描述文本（去色码）"""
+    res = []
+    cur = bytearray()
+    for b in buf:
+        if 32 <= b < 127 or b >= 128:
+            cur.append(b)
+        else:
+            if len(cur) >= minlen:
+                s = re.sub(r'\|c[0-9A-Fa-f]{8}|\|r', '', cur.decode('utf-8', 'replace'))
+                s = s.strip()
+                if s and any('\u4e00' <= c <= '\u9fff' for c in s):
+                    res.append(s)
+            cur = bytearray()
+    return res
+
 
 # ---------- 4. 解析 SLK 表 ----------
 def parse_slk(data):
@@ -161,7 +211,7 @@ def color_of(rarity):
         '精良':'#9AA7B5','普通':'#cfd6dd'
     }.get(rarity, '#cfd6dd')
 
-def build_html(w3x_name, items, raw_hint, slk_summary):
+def build_html(w3x_name, items, raw_hint, slk_summary, skills=None):
     rows = ''.join(
         f'<tr><td class="id">{it["id"]}</td><td class="nm" style="color:{color_of(it["rarity"])}">{it["name"]}</td>'
         f'<td><span class="b" style="background:{color_of(it["rarity"])}">{it["rarity"]}</span></td>'
@@ -174,6 +224,20 @@ def build_html(w3x_name, items, raw_hint, slk_summary):
     slk_cells = ''.join(
         f'<tr><td>{n}</td><td>{cnt} 行</td></tr>' for n, cnt in slk_summary
     ) if slk_summary else '<tr><td colspan="2">无</td></tr>'
+    if skills:
+        named = sum(1 for x in skills if x.get('name'))
+        skill_rows = ''.join(
+            f'<tr><td class="id">{x.get("code","")}</td><td>{x.get("name") or "无"}</td>'
+            f'<td class="tip">{(x.get("desc") or "—")[:30]}</td>'
+            f'<td>{x.get("cool1","")}</td><td>{x.get("cost1","")}</td>'
+            f'<td>{x.get("area1","")}</td><td>{x.get("rng1","")}</td><td>{x.get("dataA1","")}</td></tr>'
+            for x in skills
+        )
+        skill_html = (f'<h2>技能表（{len(skills)} 条 · 含名称 {named}）</h2>'
+                      '<table><tr><th>代码</th><th>名称</th><th>描述</th><th>冷却</th><th>消耗</th><th>范围</th><th>射程</th><th>数值A</th></tr>'
+                      f'{skill_rows}</table>')
+    else:
+        skill_html = '<h2>技能表</h2><p class="dim">本图未解析到技能表。</p>'
     return f"""<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -213,6 +277,7 @@ def build_html(w3x_name, items, raw_hint, slk_summary):
   </table>
   <h2>数值表（SLK 原始网格）</h2>
   <table><tr><th>表</th><th>记录数</th></tr>{slk_cells}</table>
+  {skill_html}
   <div class="dim">完整明细见同目录 <b>物品数据.json</b> 与 <b>raw/</b> 原始文件。</div>
 </div>
 </body></html>"""
@@ -246,10 +311,16 @@ def run(w3x_path):
         ('abilitydata.slk',  PATH_ABILITY_SLK),
         ('UnitStrings.txt',  PATH_UNIT_STR),
         ('unitbalance.slk',  PATH_UNIT_SLK),
+        ('war3map.wts',      PATH_WTS),
+        ('war3map.w3a',      PATH_W3A),
     ]
     raw_hint = []
     items = []
     slk_summary = []
+    ability_names = {}
+    ability_rows = []
+    wts_items = []
+    w3a_strings = []
     for label, variants in pulls:
         data, used = read_first(a, variants)
         if data is None:
@@ -259,9 +330,21 @@ def run(w3x_path):
         raw_hint.append((label, len(data)))
         if label == 'ItemStrings.txt':
             items = parse_item_strings(decode(data))
+        elif label == 'AbilityStrings.txt':
+            ability_names = parse_skill_strings(decode(data))
+        elif label == 'war3map.wts':
+            wts_items = parse_wts(decode(data))
+            with open(os.path.join(outdir, 'wts文本.json'), 'w', encoding='utf-8') as f:
+                json.dump(wts_items, f, ensure_ascii=False, indent=1)
+        elif label == 'war3map.w3a':
+            w3a_strings = extract_w3a_strings(data)
+            with open(os.path.join(outdir, '技能名.json'), 'w', encoding='utf-8') as f:
+                json.dump(w3a_strings, f, ensure_ascii=False, indent=1)
         elif label.endswith('.slk'):
             rows, _ = parse_slk(data)
             slk_summary.append((label, len(rows)))
+            if label == 'abilitydata.slk':
+                ability_rows = rows
             with open(os.path.join(outdir, label + '.json'), 'w', encoding='utf-8') as f:
                 json.dump(rows, f, ensure_ascii=False, indent=1)
 
@@ -300,7 +383,49 @@ def run(w3x_path):
     with open(html_path, 'w', encoding='utf-8') as f:
         f.write(build_html(base, items, raw_hint, slk_summary))
 
-    print(f'\n[完成] 共提取物品 {len(items)} 件。')
+    # ---- 技能表/文本提取（若有文本或 wts）----
+    skill_msg = ''
+    full = []
+    if ability_rows:
+        full = []
+        for row in ability_rows:
+            code = row.get('alias') or row.get('code') or ''
+            nm = ability_names.get(row.get('alias')) or ability_names.get(row.get('code')) or {}
+            full.append({
+                'code': code,
+                'name': nm.get('name', '') or BUILTIN_ABILITY_NAMES.get(code, ''),
+                'desc': nm.get('desc', ''),
+                'levels': row.get('levels', ''), 'cool1': row.get('Cool1', ''),
+                'cost1': row.get('Cost1', ''), 'area1': row.get('Area1', ''),
+                'rng1': row.get('Rng1', ''), 'dataA1': row.get('DataA1', ''),
+            })
+        with open(os.path.join(outdir, '技能表.json'), 'w', encoding='utf-8') as f:
+            json.dump(full, f, ensure_ascii=False, indent=1)
+        named = sum(1 for x in full if x['name'])
+        with open(os.path.join(outdir, '技能表.md'), 'w', encoding='utf-8') as f:
+            f.write(f'# {base} · 技能表\n\n> 共 {len(full)} 条 · 有名称 {named} 条\n\n')
+            f.write('| 代码 | 名称 | 描述 | 冷却 | 消耗 | 范围 | 射程 | 数值A |\n|---|---|---|---|---|---|---|---|\n')
+            for x in full:
+                desc = (x['desc'] or '—').replace('|', '\\|')[:40]
+                f.write(f"| {x['code']} | {x['name'] or '无'} | {desc} | {x['cool1']} | {x['cost1']} | {x['area1']} | {x['rng1']} | {x['dataA1']} |\n")
+        skill_msg = f'；技能表 {len(full)} 条' + (f'（含名称 {named}）' if named else '（本图无技能名文本，仅数值）')
+        if wts_items:
+            skill_msg += f'；wts 文本 {len(wts_items)} 条'
+
+    if w3a_strings:
+        with open(os.path.join(outdir, '技能名.md'), 'w', encoding='utf-8') as f:
+            f.write(f'# {base} · 技能名（war3map.w3a 内嵌）\n\n')
+            f.write(f'> 共 {len(w3a_strings)} 个中文技能名/描述\n\n')
+            for s in w3a_strings:
+                f.write('- ' + s.replace('|', '\\|') + '\n')
+        skill_msg += f'；技能名 {len(w3a_strings)} 条'
+
+    # HTML 报告（含技能表）
+    html_path = os.path.join(outdir, '解包报告.html')
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(build_html(base, items, raw_hint, slk_summary, skills=full))
+
+    print(f'\n[完成] 共提取物品 {len(items)} 件。{skill_msg}')
     print(f'  输出目录：{outdir}')
     print(f'  - 物品数据.json （完整明细）')
     print(f'  - 物品清单.md   （Markdown 汇总）')
