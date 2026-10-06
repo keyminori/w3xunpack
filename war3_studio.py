@@ -126,7 +126,21 @@ class StudioApp:
     def __init__(self, root):
         self.root = root
         self.src = None
+        self._set_icon()
         self._build()
+
+    def _set_icon(self):
+        cands = []
+        if hasattr(sys, '_MEIPASS'):
+            cands.append(os.path.join(sys._MEIPASS, 'war3.ico'))
+        cands.append(os.path.join(HERE, 'war3.ico'))
+        for c in cands:
+            if os.path.exists(c):
+                try:
+                    self.root.iconbitmap(c)
+                    return
+                except Exception:
+                    pass
 
     def _build(self):
         r = self.root
@@ -225,7 +239,13 @@ class StudioApp:
             if not name:
                 continue
             ext = '.' + name.rsplit('.', 1)[-1].lower() if '.' in name else ''
-            label = next((l for e, l in EXT_LABEL if ext == e), '其他')
+            low = name.lower()
+            if 'commandbuttons' in low or 'passivebuttons' in low or 'worldeditui' in low:
+                label = '图标·按钮'
+            elif '\\ui\\' in low or '/ui/' in low or 'replaceabletextures' in low:
+                label = '图标·UI'
+            else:
+                label = next((l for e, l in EXT_LABEL if ext == e), '其他')
             groups.setdefault(label, []).append(f)
         for label in sorted(groups.keys(), key=lambda x: (x != '其他', x)):
             items = groups[label]
