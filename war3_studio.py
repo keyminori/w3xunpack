@@ -81,21 +81,23 @@ class MapSource:
                         pass
 
     def read_to(self, name, dest):
-        """读取资源到本地 dest，返回 dest 或 None。"""
-        if not self._use_node:
+        """读取资源到本地 dest，返回 dest 或 None。顺序：先 mpyq(按路径)，再 Node。"""
+        # 1) 先尝试 mpyq（按路径直接读；KK/SLK 优化图的 .slk/.w3a 等标准路径可读）
+        try:
+            a = W.open_mpq(self.path)
             try:
-                a = W.open_mpq(self.path)
-                try:
-                    data = W.read_file(a, name)
-                finally:
-                    W.close_mpq(a)
-                if data:
-                    os.makedirs(os.path.dirname(dest) or '.', exist_ok=True)
-                    with open(dest, 'wb') as f:
-                        f.write(data)
-                    return dest
-            except Exception:
-                pass
+                nb = name.encode('utf-8') if isinstance(name, str) else name
+                data = W.read_file(a, nb)
+            finally:
+                W.close_mpq(a)
+            if data:
+                os.makedirs(os.path.dirname(dest) or '.', exist_ok=True)
+                with open(dest, 'wb') as f:
+                    f.write(data)
+                return dest
+        except Exception:
+            pass
+        # 2) 再尝试 Node+StormJS（KK 图占位名文件）
         if has_node():
             sd = find_stormjs()
             if sd:
@@ -289,12 +291,17 @@ class StudioApp:
             elif ext in ('mdx', 'mdl'):
                 info = f'{name}\n{size} 字节 · 模型'
                 if MP:
-                    glb = MP.mdx_to_glb(dest)
+                    glb = MP.mdx_to_glb(dest, self.src.path)
                     if glb:
-                        MP.preview_glb(glb)
-                        info += '\n已打开 3D 预览窗口'
+                        try:
+                            subprocess.Popen([sys.executable, '--preview', glb],
+                                             creationflags=_CSW)
+                            info += '\n已启动 3D 预览窗口'
+                        except Exception:
+                            MP.preview_glb(glb)
+                            info += '\n已用浏览器打开预览'
                     else:
-                        info += '\n（未检测到 Node，无法 3D 预览）'
+                        info += '\n（未检测到 Node，无法预览）'
                 self.info.config(text=info)
             else:
                 self.info.config(text=f'{name}\n{size} 字节')
@@ -448,16 +455,18 @@ class StudioApp:
                 elif label == 'AbilityStrings.txt':
                     ability_names = U.parse_skill_strings(U.decode(data))
                 elif label == 'abilitydata.slk':
-                    rows, _ = U.parse_slk(U.decode(data))
+                    rows, _ = U.parse_slk(data)
                     ability_rows = rows
                 elif label.endswith('.slk'):
-                    rows, _ = U.parse_slk(U.decode(data))
+                    rows, _ = U.parse_slk(data)
                     slk_rows.append((label, rows))
             self._write_slk_outputs(dest, items, slk_rows, ability_names, ability_rows)
             n = len(items)
             self.root.after(0, lambda: self._log(f'SLK 解包完成 → {dest}（物品 {n}）'))
         except Exception as e:
-            self.root.after(0, lambda: self._log('解包错误: ' + str(e)))
+            import traceback
+            tb = traceback.format_exc()
+            self.root.after(0, lambda tb=tb: self._log('解包错误:\n' + tb))
 
     def _write_slk_outputs(self, dest, items, slk_rows, ability_names, ability_rows):
         # 去重物品
@@ -490,6 +499,22 @@ class StudioApp:
 
 
 def main():
+    # 独立模型预览模式：War3Studio.exe --preview <glb>
+    if '--preview' in sys.argv:
+        try:
+            i = sys.argv.index('--preview')
+            glb = sys.argv[i + 1]
+            import model_preview as MP
+            MP.preview_pywebview(glb)
+        except Exception as e:
+            try:
+                import tkinter as tk
+                from tkinter import messagebox
+                r = tk.Tk(); r.withdraw()
+                messagebox.showerror('预览错误', str(e)); r.destroy()
+            except Exception:
+                pass
+        return
     import tkinter as tk
     root = tk.Tk()
     app = StudioApp(root)
