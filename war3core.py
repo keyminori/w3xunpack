@@ -33,7 +33,7 @@ def open_mpq(path):
             with open(tmp, 'wb') as fout:
                 shutil.copyfileobj(fin, fout, 1024 * 1024)
         mpq_path = tmp
-    arch = mpyq.MPQArchive(mpq_path, listfile=True)
+    arch = mpyq.MPQArchive(mpq_path, listfile=False)
     arch._tmpfile = tmp
     return arch
 
