@@ -231,9 +231,10 @@ class StudioApp:
             items = groups[label]
             node = self.tree.insert('', 'end', text=f'{label}（{len(items)}）', open=False)
             for it in sorted(items, key=lambda x: x['name'].lower()):
-                size = it.get('size', 0)
+                ext = it['name'].rsplit('.', 1)[-1].upper() if '.' in it['name'] else '-'
+                sz = it.get('size', 0)
                 self.tree.insert(node, 'end', text=it['name'],
-                                 values=('', size if size else ''), iid=None)
+                                 values=(ext, sz if sz else ''), iid=None)
 
     # ---------- 选择/预览 ----------
     def on_select(self, ev):
